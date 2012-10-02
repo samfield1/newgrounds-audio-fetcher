@@ -1,5 +1,8 @@
 #!/usr/bin/php
 <?php
+	## Install repos :: apt-get install wget id3 php5
+
+	// Define the base of the wget command and what a tab is
 	$wgetBase = 'wget -c -q -U "Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.1 (KHTML, like Gecko) Chrome/21.0.1180.89 Safari/537.1" -O ';
 	define('TAB', "\t");
 
