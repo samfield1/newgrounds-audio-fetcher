@@ -37,17 +37,25 @@
 	// rename
 	$usernames = &$_SERVER['argv'];
 
-	// Lets get jiggy
-	foreach ($usernames as $username) {
+	$fileCounter = 0;
 
-		echo 'Downloading audio tracks for ',$username, PHP_EOL;
+	// Lets get jiggy
+	foreach ($usernames as &$username) {
+
+		// Fix common mistakes
+		$parts = explode('://', $username);
+		$username = isset($parts[1]) ? $parts[1] : $parts[0];
+		$parts = explode('.newgrounds.com', $username);
+		$usernaame = $parts[0];
+
+		echo 'Preparing downloads for ',$username, PHP_EOL;
 
 		// Clean up the username
 		$usernameFiltered = trim(strtolower($username));
 
 		// Is this a valid username?
 		if(!preg_match("/^[a-z0-9][a-z0-9\-]+[a-z0-9]$/", $usernameFiltered)) {
-			echo TAB, 'Username is invalid: ',$usernameFiltered;
+			echo TAB, 'Username is invalid: ',$usernameFiltered,PHP_EOL;
 			continue;
 		}
 
@@ -66,7 +74,7 @@
 			$username = $matches[1];
 		}
 
-		echo TAB,'Preparing to download files for ',$username,PHP_EOL;
+		echo TAB,'Download files for ',$username,PHP_EOL;
 
 		// Check for no submissions
 		if (strpos($data, 'does not have any audio submission') !== false) {
@@ -74,10 +82,20 @@
 			continue;
 		}
 
-		// Store the maps in a new folder
-		$downloadDir = 'downloads/'.$usernameFiltered;
+		// Store the mp3s in a new folder
+		$downloadDir = 'downloads/'.$usernameFiltered.'/';
 		if (!is_dir($downloadDir)) {
 			mkdir($downloadDir);
+		}
+
+		// Find the artist artwork
+		$matches = array();
+		preg_match('/http:\/\/uimg.ngfiles.com\/icons\/(\d*)\/(\d*)_small.jpg/', $data, $matches);
+		if (isset($matches[1])) {
+			echo TAB,'Downloading Album Art',PHP_EOL;
+			$artwork = 'http://uimg.ngfiles.com/profile/'.$matches[1].'/'.$matches[2].'.jpg';
+			$sys = $wgetBase.escapeshellarg($downloadDir.'album-art.jpg').' '.escapeshellarg($artwork).' &'; // Fork it
+			exec($sys, $lines, $code);
 		}
 
 		// Filter out the header
@@ -87,21 +105,23 @@
 		$data = substr($data, 0, strpos($data, '<br style="clear: both" />'));
 
 		// Now remove whitespace and new lines
-		$count = 0;
+		$count = false;
 		do {
-			$data = str_replace(array(PHP_EOL, '  ', "\t"), '', $data, $count);
+			$data = str_replace(array(PHP_EOL, '  ', TAB), '', $data, $count);
 		} while ($count > 0);
 
 		$sections = explode('</h2>', $data);
 
+		// Find the first year
 		preg_match('/<h2 class="audio">(\d{4}) Submissions/', $sections[0], $year);
 		if (isset($year)) {
 			$year = $year[1];
 		}
 
+		// Clean up
 		unset($sections[0], $data);
 
-		$d = 1;
+		$d = 1; // Disc / Year Counter
 		foreach ($sections as $section) {
 
 			echo TAB,TAB,'Downloading tracks uploaded in ',$year,PHP_EOL;
@@ -113,7 +133,9 @@
 			$t = count($matches[1]);
 			$files = array();
 			$i = 0;
+			// Foreach audio URL download an mp3
 			while ($i < $t) {
+				// Put in an array so future devs can easily make it threadable
 				$files[$i] = array(
 						'lid' => $i + 1,					// Local ID (Track ID)
 						'ngid' => (int)$matches[1][$i],				// Newgrounds ID
@@ -121,17 +143,24 @@
 						'type' => $matches[3][$i],				// Song Type
 						'disc' => $d,						// Disc number
 						'year' => $year,					// Newgrounds Year
-						'file' => $downloadDir.'/'.$d.' - '.$i.' - '.str_replace(array('/', '.', '~'), '_',html_entity_decode($matches[2][$i])).'.mp3'	// User - Disc - Track.mp3
+						'file' => $downloadDir.$d.' - '.$i.' - '.str_replace(array('/', '.', '~'), '_',html_entity_decode($matches[2][$i])).'.mp3'	// User - Disc - Track.mp3
 					);
 				echo TAB,TAB,TAB,'Working on Track ', $i + 1, ' of ', $t, ' (',$files[$i]['name'],')...',PHP_EOL;
+
+				// Download the file
 				$code = false;
 				$lines= array();
 				$sys = $wgetBase.escapeshellarg($files[$i]['file']).' '.escapeshellarg('http://www.newgrounds.com/audio/download/'.$files[$i]['ngid']);
 				$line = exec($sys, $lines, $code);
+
+				// wget returned a non-zero. An error
 				if ($code !== 0) {
 					echo TAB,TAB,TAB,'Failed to download file', PHP_EOL;
+					++$i;
 					continue;
 				}
+
+				// Change the Meta data
 				$sys = 'id3';
 				$sys.= ' -A '.escapeshellarg('Newgrounds Audio Portal - '.$username);
 				$sys.= ' -t '.escapeshellarg($files[$i]['name']);
@@ -149,16 +178,28 @@
 				$lines = array();
 				$data = exec($sys, $lines, $code);
 
+				// Next URL/file
 				++$i;
+
+				++$fileCounter;
 			}
 
+			// Find out what the next year the user uploaded a file in
 			preg_match('/<h2 class="audio">(\d{4}) Submissions/', $section, $year);
 			if (isset($year[1])) {
 				$year = $year[1];
 			}
+
+			// Another year = Another disc
 			++$d;
 		}
+
+		// Finished downloading everything for this user.
 		echo TAB,'Completed processing for ',$username,PHP_EOL;
+
+		// Clean up
 		unset($year);
 	}
+
+	echo 'Finished downloading ', $fileCounter, ' files!',PHP_EOL;
 ?>
