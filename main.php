@@ -1,6 +1,7 @@
 #!/usr/bin/php
 <?php
-	## Install repos :: apt-get install wget id3 php5
+	## Install :: apt-get install wget id3 php5
+	## If you don't want to use wget IE you just wanna do a pure php download then just find and replacae wgetBase with your patch
 
 	// Define the base of the wget command and what a tab is
 	$wgetBase = 'wget -c -q -U "Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.1 (KHTML, like Gecko) Chrome/21.0.1180.89 Safari/537.1" -O ';
@@ -18,7 +19,7 @@
 
 	// No user? - Show usage
 	if ($_SERVER['argc'] < 2) {
-		echo 'Usage: ./', $file[0], ' artist-username-1 artist-username-2',PHP_EOL;
+		echo 'Usage: ', $file[0], ' artist-username-1 artist-username-2 ...',PHP_EOL;
 		die(1);
 	}
 
@@ -41,15 +42,21 @@
 
 		echo 'Downloading audio tracks for ',$username, PHP_EOL;
 
-		// Tidy up username for use with NG
-		$usernameFiltered = str_replace(array('/', '.', '~'), '_', strtolower(trim($username)));
+		// Clean up the username
+		$usernameFiltered = trim(strtolower($username));
+
+		// Is this a valid username?
+		if(!preg_match("/^[a-z0-9][a-z0-9\-]+[a-z0-9]$/", $usernameFiltered)) {
+			echo TAB, 'Username is invalid: ',$usernameFiltered;
+			continue;
+		}
 
 		// Download the index file
 		$data = file_get_contents('http://'.$usernameFiltered.'.newgrounds.com/audio/');
 
 		// Validate that we did download a file and that it wasn't an error
 		if (strlen($data) < 200 || strpos($data, '<title>Newgrounds - Error</title>') !== false) {
-			echo 'Unable to view tracks for "',$username,'"',PHP_EOL;
+			echo TAB,'Unable to view tracks for "',$username,'"',PHP_EOL;
 			continue;
 		}
 
@@ -60,15 +67,18 @@
 		}
 
 		echo TAB,'Preparing to download files for ',$username,PHP_EOL;
-		if (!is_dir($usernameFiltered)) {
-			mkdir('downloads/'.$usernameFiltered);
-		}
 
 		// Check for no submissions
-//		if (strpos('does not have any audio submission', $data) === false) {
-//			echo 'User "',$username,'" does not have any audio submissions.',PHP_EOL;
-//			continue;
-//		}
+		if (strpos($data, 'does not have any audio submission') !== false) {
+			echo TAB,'User "',$username,'" does not have any audio submissions.',PHP_EOL;
+			continue;
+		}
+
+		// Store the maps in a new folder
+		$downloadDir = 'downloads/'.$usernameFiltered;
+		if (!is_dir($downloadDir)) {
+			mkdir($downloadDir);
+		}
 
 		// Filter out the header
 		$data = substr($data, strpos($data, '<div class="fatcol">'));
@@ -111,7 +121,7 @@
 						'type' => $matches[3][$i],				// Song Type
 						'disc' => $d,						// Disc number
 						'year' => $year,					// Newgrounds Year
-						'file' => 'downloads/'.$usernameFiltered.'/'.$d.' - '.$i.' - '.str_replace(array('/', '.', '~'), '_',html_entity_decode($matches[2][$i])).'.mp3'	// User - Disc - Track.mp3
+						'file' => $downloadDir.'/'.$d.' - '.$i.' - '.str_replace(array('/', '.', '~'), '_',html_entity_decode($matches[2][$i])).'.mp3'	// User - Disc - Track.mp3
 					);
 				echo TAB,TAB,TAB,'Working on Track ', $i + 1, ' of ', $t, ' (',$files[$i]['name'],')...',PHP_EOL;
 				$code = false;
