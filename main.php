@@ -1,10 +1,11 @@
 #!/usr/bin/php
 <?php
-	## Install :: apt-get install wget id3 php5
+	## Install :: apt-get install wget id3v2 php5
 	## If you don't want to use wget IE you just wanna do a pure php download then just find and replacae wgetBase with your patch
 
 	// Define the base of the wget command and what a tab is
 	$wgetBase = 'wget -c -q -U "Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.1 (KHTML, like Gecko) Chrome/21.0.1180.89 Safari/537.1" -O ';
+	$id3 = 'id3v2'; // Your id3 tagging program
 	define('TAB', "\t");
 
 	// Kick out credits
@@ -24,7 +25,7 @@
 	}
 
 	// Load genre ids
-	$sys = 'id3 -L';
+	$sys = $id3.' -L';
 	$code = false;
 	$lines = array();
 	$data = exec($sys, $lines, $code);
@@ -46,7 +47,7 @@
 		$parts = explode('://', $username);
 		$username = isset($parts[1]) ? $parts[1] : $parts[0];
 		$parts = explode('.newgrounds.com', $username);
-		$usernaame = $parts[0];
+		$username = $parts[0];
 
 		echo 'Preparing downloads for ',$username, PHP_EOL;
 
@@ -145,7 +146,7 @@
 						'year' => $year,					// Newgrounds Year
 						'file' => $downloadDir.$d.' - '.$i.' - '.str_replace(array('/', '.', '~'), '_',html_entity_decode($matches[2][$i])).'.mp3'	// User - Disc - Track.mp3
 					);
-				echo TAB,TAB,TAB,'Working on Track ', $i + 1, ' of ', $t, ' (',$files[$i]['name'],')...',PHP_EOL;
+				echo TAB,TAB,TAB,'Working on Track ', $i + 1, ' of ', $t, ' (',$files[$i]['name'],')...',TAB;
 
 				// Download the file
 				$code = false;
@@ -155,16 +156,19 @@
 
 				// wget returned a non-zero. An error
 				if ($code !== 0) {
-					echo TAB,TAB,TAB,'Failed to download file', PHP_EOL;
+					echo 'Failed to download file', PHP_EOL;
 					++$i;
 					continue;
 				}
 
 				// Change the Meta data
-				$sys = 'id3';
+				$sys = $id3;
 				$sys.= ' -A '.escapeshellarg('Newgrounds Audio Portal - '.$username);
 				$sys.= ' -t '.escapeshellarg($files[$i]['name']);
 				$sys.= ' -T '.escapeshellarg($files[$i]['lid']);
+				if (strpos($id3,'2') !== false) { // if we're using id3v2
+					$sys.= '/'.$t;
+				}
 				$sys.= ' -a '.escapeshellarg($username);
 				$sys.= ' -y '.escapeshellarg($files[$i]['year']);
 				$sys.= ' -c '.escapeshellarg('Downloaded using GingerPauls NG batch downloader');
@@ -177,6 +181,8 @@
 				$code = false;
 				$lines = array();
 				$data = exec($sys, $lines, $code);
+
+				echo 'Completed!',PHP_EOL;
 
 				// Next URL/file
 				++$i;
