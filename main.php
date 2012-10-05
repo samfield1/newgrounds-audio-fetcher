@@ -56,10 +56,10 @@
 	// No users? - Show usage
 	if (count($_SERVER['argv']) === 0) {
 		echo 'Usage: ', $file, ' [options] artist-username-1 artist-username-2 ...', PHP_EOL, PHP_EOL;
-		echo str_pad('Options Name', 20, ' '), str_pad('GNU long option', 20, ' '), 'Meaning',PHP_EOL;
-		echo str_pad(' -h', 20, ' '), str_pad('--help', 20, ' '), 'Display this help message', PHP_EOL;
-		echo str_pad(' -l', 20, ' '), str_pad('--limit', 20, ' '), 'Limit the total number of MP3 downloads', PHP_EOL;
-		echo str_pad(' -y', 20, ' '), str_pad('--year', 20, ' '), 'Limit the downloads to this year', PHP_EOL;
+		echo str_pad('Option', 16, ' '), str_pad('GNU long option', 20, ' '), 'Meaning',PHP_EOL;
+		echo str_pad(' -h', 16, ' '), str_pad('--help', 20, ' '), 'Display this help message', PHP_EOL;
+		echo str_pad(' -l', 16, ' '), str_pad('--limit', 20, ' '), 'Limit the total number of MP3 downloads', PHP_EOL;
+		echo str_pad(' -y', 16, ' '), str_pad('--year', 20, ' '), 'Limit the downloads to this year', PHP_EOL;
 		die(0);
 	}
 
