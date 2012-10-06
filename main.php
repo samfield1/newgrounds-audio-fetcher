@@ -5,10 +5,11 @@
 
 	// Define defaults
 	$wgetBase = 'wget -c -q -U "Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.1 (KHTML, like Gecko) Chrome/21.0.1180.89 Safari/537.1" -O '; // wget base cmd
-	$id3 = 'id3v2'; // Your id3 tagging program
-	define('TAB', "\t"); // A tab
+	$id3 = 'id3v2';		// Your id3 tagging program
+	define('TAB', "\t");	// A tab
 	$targetYear = false;	// The year we're going to download or false for all
 	$downloadLimit = false; // Limit the total downloads
+	$simulationMode = false;// If true we don't save anything
 
 	// Kick out credits
 	echo 'Newgrounds Audio Portal Downloader',PHP_EOL,
@@ -21,11 +22,12 @@
 	unset($_SERVER['argv'][0]);
 
 	// See what options are being set via command line flags
-	$shortopts = "y:l:h";	// Year & Limit
+	$shortopts = "y:l:hs";	// Year & Limit
 	$longopts  = array(
 		"year:",	// Year
 		"limit:",	// Limit
-		"help"		// Help/useage
+		"help",		// Help/useage
+		"simulate",	// SimulationMode
 	);
 	$options = getopt($shortopts, $longopts);
 
@@ -46,6 +48,10 @@
 			}
 			array_splice($_SERVER['argv'], 0, 2);
 		} elseif($option == 'h' || $option == 'help') {
+			$_SERVER['argv'] = array(); // reset everything
+			break; // No more options help overrides everything
+		} elseif($option == 'simulation' || $option == 's') {
+			$simulationMode = true;
 			array_splice($_SERVER['argv'], 0, 1);
 		} else {
 			echo 'Unknown option (',$option,')',PHP_EOL;
@@ -60,6 +66,7 @@
 		echo str_pad(' -h', 16, ' '), str_pad('--help', 20, ' '), 'Display this help message', PHP_EOL;
 		echo str_pad(' -l', 16, ' '), str_pad('--limit', 20, ' '), 'Limit the total number of MP3 downloads', PHP_EOL;
 		echo str_pad(' -y', 16, ' '), str_pad('--year', 20, ' '), 'Limit the downloads to this year', PHP_EOL;
+		echo str_pad(' -s', 16, ' '), str_pad('--simulate', 20, ' '), 'Don\'t save anything', PHP_EOL;
 		die(0);
 	}
 
@@ -124,7 +131,7 @@
 
 		// Store the mp3s in a new folder
 		$downloadDir = 'downloads/'.$usernameFiltered.'/';
-		if (!is_dir($downloadDir)) {
+		if (!is_dir($downloadDir) && $simulationMode === false) {
 			mkdir($downloadDir);
 		}
 
@@ -132,10 +139,16 @@
 		$matches = array();
 		preg_match('/http:\/\/uimg.ngfiles.com\/icons\/(\d*)\/(\d*)_small.jpg/', $data, $matches);
 		if (isset($matches[1])) {
-			echo TAB,'Downloading Album Art',PHP_EOL;
-			$artwork = 'http://uimg.ngfiles.com/profile/'.$matches[1].'/'.$matches[2].'.jpg';
-			$sys = $wgetBase.escapeshellarg($downloadDir.'album-art.jpg').' '.escapeshellarg($artwork).' &'; // Fork it
-			exec($sys, $lines, $code);
+			echo TAB,'Downloading Album Art';
+			if ($simulationMode) {
+				echo TAB, 'Simulated!',PHP_EOL;
+			} else {
+				$artwork = 'http://uimg.ngfiles.com/profile/'.$matches[1].'/'.$matches[2].'.jpg';
+				$sys = $wgetBase.escapeshellarg($downloadDir.'album-art.jpg').' '.escapeshellarg($artwork).' &'; // Fork it
+				exec($sys, $lines, $code);
+				echo '...';
+			}
+			echo PHP_EOL;
 		}
 
 		// Filter out the header
@@ -193,6 +206,13 @@
 							'file' => $file				// File (Disc-Track Title)
 						);
 					echo TAB,TAB,TAB,str_pad('Working on Track '. ($i + 1). ' of '. $t. ' ('.$files[$i]['name'].')...', 56, ' '),TAB;
+
+					// Simulation mode
+					if ($simulationMode) {
+						echo 'Simulated!',PHP_EOL;
+						++$i;
+						continue;
+					}
 
 					// Download the file
 					$code = false;
