@@ -73,7 +73,6 @@
 		$parts = explode(':', $line);
 		$id3GenreCodes[strtolower(trim($parts[1]))] = (int)$parts[0];
 	}
-
 	// rename
 	$usernames = &$_SERVER['argv'];
 
@@ -178,23 +177,31 @@
 				$i = 0;
 				// Foreach audio URL download an mp3
 				while ($i < $t) {
+					// Build file locations
+					$file = $downloadDir;		// Start in download dir
+					$file.= $d . '-' . ($i + 1);	// Add the Disc and track numbers
+					$file.= ' '.str_replace(array('/', '.', '~', '\'', '"', '?', "\x00", '\\'), '_',html_entity_decode($matches[2][$i])).'.mp3'; // add friendly name
+
 					// Put in an array so future devs can easily make it threadable
 					$files[$i] = array(
-							'lid' => $i + 1,					// Local ID (Track ID)
-							'ngid' => (int)$matches[1][$i],				// Newgrounds ID
-							'name' => html_entity_decode($matches[2][$i]),		// Song Name
-							'type' => $matches[3][$i],				// Song Type
-							'disc' => $d,						// Disc number
-							'year' => $year,					// Newgrounds Year
-							'file' => $downloadDir.$d.' - '.$i.' - '.str_replace(array('/', '.', '~'), '_',html_entity_decode($matches[2][$i])).'.mp3'	// User - Disc - Track.mp3
+							'lid' => $i + 1,				// Local ID (Track ID)
+							'ngid' => (int)$matches[1][$i],			// Newgrounds ID
+							'name' => html_entity_decode($matches[2][$i]),	// Song Name
+							'type' => $matches[3][$i],			// Song Type
+							'disc' => $d,					// Disc number
+							'year' => $year,				// Newgrounds Year
+							'file' => $file				// File (Disc-Track Title)
 						);
-					echo TAB,TAB,TAB,'Working on Track ', $i + 1, ' of ', $t, ' (',$files[$i]['name'],')...',TAB;
+					echo TAB,TAB,TAB,str_pad('Working on Track '. ($i + 1). ' of '. $t. ' ('.$files[$i]['name'].')...', 56, ' '),TAB;
 
 					// Download the file
 					$code = false;
 					$lines= array();
 					$sys = $wgetBase.escapeshellarg($files[$i]['file']).' '.escapeshellarg('http://www.newgrounds.com/audio/download/'.$files[$i]['ngid']);
 					$line = exec($sys, $lines, $code);
+					if ($code !== 0) {
+						echo TAB, TAB, TAB, 'Possible error with command: ', $sys;
+					}
 
 					// wget returned a non-zero. An error
 					if ($code !== 0) {
@@ -204,25 +211,32 @@
 					}
 
 					// Change the Meta data
-					$sys = $id3;
-					$sys.= ' -A '.escapeshellarg('Newgrounds Audio Portal - '.$username);
-					$sys.= ' -t '.escapeshellarg($files[$i]['name']);
-					$sys.= ' -T '.escapeshellarg($files[$i]['lid']);
-					if (strpos($id3,'2') !== false) { // if we're using id3v2
-						$sys.= '/'.$t;
-					}
-					$sys.= ' -a '.escapeshellarg($username);
-					$sys.= ' -y '.escapeshellarg($files[$i]['year']);
-					$sys.= ' -c '.escapeshellarg('Downloaded using GingerPauls NG batch downloader');
-					if (isset($id3GenreCodes[$files[$i]['type']])) {
-						$sys.= ' -g '.escapeshellarg($id3GenreCodes[$files[$i]['type']]);
+					$sys = $id3; // Base Command
+					$sys.= ' -A '.escapeshellarg('Newgrounds Audio Portal - '.$username);	// Album
+					$sys.= ' -t '.escapeshellarg($files[$i]['name']);			// Track Name
+
+					// if we're using id3v2
+					if (strpos($id3,'2') !== false) {
+						$sys.= ' -T '.escapeshellarg($files[$i]['lid'].'/'.$t);		// Track/Total Tracks
+						$sys.= ' --TPOS '.escapeshellarg($files[$i]['disc']);		// Include disc number
 					} else {
-						$sys.= ' -g 12';
+						$sys.= ' -T '.escapeshellarg($files[$i]['lid']);		// Track
 					}
-					$sys.= ' '.escapeshellarg($files[$i]['file']);
+					$sys.= ' -a '.escapeshellarg($username);				// Artist
+					$sys.= ' -y '.escapeshellarg($files[$i]['year']);			// Year
+					$sys.= ' -c '.escapeshellarg('Downloaded using GingerPauls NG batch downloader'); // Comments
+					if (isset($id3GenreCodes[$files[$i]['type']])) { // If we have the ID of the genre
+						$sys.= ' -g '.escapeshellarg($id3GenreCodes[$files[$i]['type']]); // use it
+					} else {
+						$sys.= ' -g 12'; // else use other
+					}
+					$sys.= ' '.escapeshellarg($files[$i]['file']); // The audio file we're changing
 					$code = false;
 					$lines = array();
 					$data = exec($sys, $lines, $code);
+					if ($code !== 0 || count($lines) > 0) {
+						echo TAB, TAB, TAB, 'Possible error with command: ', $sys;
+					}
 
 					echo 'Completed!',PHP_EOL;
 
