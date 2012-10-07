@@ -1,15 +1,69 @@
 #!/usr/bin/php
 <?php
-	## Install :: apt-get install wget id3v2 php5
-	## If you don't want to use wget IE you just wanna do a pure php download then just find and replacae wgetBase with your patch
+	## Install :: apt-get install id3v2 php5 php5-curl
 
 	// Define defaults
-	$wgetBase = 'wget -c -q -U "Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.1 (KHTML, like Gecko) Chrome/21.0.1180.89 Safari/537.1" -O '; // wget base cmd
 	$id3 = 'id3v2';		// Your id3 tagging program
 	define('TAB', "\t");	// A tab
+	define('cReturn', "\r");// Return to current line start
 	$targetYear = false;	// The year we're going to download or false for all
 	$downloadLimit = false; // Limit the total downloads
 	$simulationMode = false;// If true we don't save anything
+	$downloadText = '';	// Download text
+
+	$i = 0;
+	function downloadFileCallback ($downloadTotal, $downloadCompleted, $uploadTotal, $uploadCompleted) {
+		global $downloadText;
+		if ($downloadTotal === 0) {
+			echo cReturn, $downloadText, 'Starting...';
+		} else {
+			echo cReturn, $downloadText, round(($downloadCompleted / $downloadTotal) * 100, 2), '%           ';
+		}
+	}
+
+	// Our download function
+	function downloadFile($url = false, $target = false, $text = false, $completed = false, $failed = false) {
+		if (!is_string($url) || !is_string($target)) {
+			return false; // Somethings wrong
+		}
+
+		global $downloadText;
+		if (is_string($target)) {
+			$downloadText = $text.TAB;
+		} else {
+			$downloadText = '';
+		}
+
+		if (!is_string($completed)) {
+			$completed = 'Completed!'.PHP_EOL;
+		}
+
+		if (!is_string($failed)) {
+			$failed = 'Failed!'.PHP_EOL;
+		}
+
+		$target = fopen($target, 'w');
+		$ch = curl_init($url);
+		curl_setopt($ch, CURLOPT_AUTOREFERER, true);
+		curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 2);		// 2 seconds
+		curl_setopt($ch, CURLOPT_DNS_CACHE_TIMEOUT, 1200);	// 20 mins
+		curl_setopt($ch, CURLOPT_TIMEOUT, 600);			// 10 mins per download max
+		curl_setopt($ch, CURLOPT_USERAGENT, "Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.1 (KHTML, like Gecko) Chrome/21.0.1180.89 Safari/537.1");
+		curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);		// Follow redirects
+		curl_setopt($ch, CURLOPT_FILE, $target);		// Write data to this file
+		curl_setopt($ch, CURLOPT_NOPROGRESS, false);		// Make sure we can fire progress function
+		curl_setopt($ch, CURLOPT_PROGRESSFUNCTION, 'downloadFileCallback'); // This is progress functions
+		curl_setopt($ch, CURLOPT_BUFFERSIZE, 153600);		// 150kb, lower = more updates
+		$result = curl_exec($ch);
+		curl_close($ch);
+		fclose($target);
+		if ($result) {
+			echo cReturn, $downloadText, $completed;
+		} else { // Bugger
+			echo cReturn, $downloadText, $failed;
+		}
+		return $result;
+	}
 
 	// Kick out credits
 	echo 'Newgrounds Audio Portal Downloader',PHP_EOL,
@@ -26,7 +80,7 @@
 	$longopts  = array(
 		"year:",	// Year
 		"limit:",	// Limit
-		"help",		// Help/useage
+		"help",		// Help/usage
 		"simulate",	// SimulationMode
 	);
 	$options = getopt($shortopts, $longopts);
@@ -144,11 +198,8 @@
 				echo TAB, 'Simulated!',PHP_EOL;
 			} else {
 				$artwork = 'http://uimg.ngfiles.com/profile/'.$matches[1].'/'.$matches[2].'.jpg';
-				$sys = $wgetBase.escapeshellarg($downloadDir.'album-art.jpg').' '.escapeshellarg($artwork).' &'; // Fork it
-				exec($sys, $lines, $code);
-				echo '...';
+				downloadFile($artwork, $downloadDir.'album-art.jpg', TAB.'Downloading Album Art... ');
 			}
-			echo PHP_EOL;
 		}
 
 		// Filter out the header
@@ -205,7 +256,8 @@
 							'year' => $year,				// Newgrounds Year
 							'file' => $file				// File (Disc-Track Title)
 						);
-					echo TAB,TAB,TAB,str_pad('Working on Track '. ($i + 1). ' of '. $t. ' ('.$files[$i]['name'].')...', 56, ' '),TAB;
+					$text = TAB.TAB.TAB.str_pad('Working on Track '. ($i + 1). ' of '. $t. ' ('.$files[$i]['name'].')...', 56, ' ');
+					echo $text;
 
 					// Simulation mode
 					if ($simulationMode) {
@@ -215,37 +267,27 @@
 					}
 
 					// Download the file
-					$code = false;
-					$lines= array();
-					$sys = $wgetBase.escapeshellarg($files[$i]['file']).' '.escapeshellarg('http://www.newgrounds.com/audio/download/'.$files[$i]['ngid']);
-					$line = exec($sys, $lines, $code);
-					if ($code !== 0) {
-						echo TAB, TAB, TAB, 'Possible error with command: ', $sys;
-					}
-
-					// wget returned a non-zero. An error
-					if ($code !== 0) {
-						echo 'Failed to download file', PHP_EOL;
+					if(!downloadFile('http://www.newgrounds.com/audio/download/'.$files[$i]['ngid'], $files[$i]['file'], $text, '')) {
 						++$i;
 						continue;
 					}
 
 					// Change the Meta data
 					$sys = $id3; // Base Command
-					$sys.= ' -A '.escapeshellarg('Newgrounds Audio Portal - '.$username);	// Album
-					$sys.= ' -t '.escapeshellarg($files[$i]['name']);			// Track Name
+					$sys.= ' -A '.escapeshellarg('Newgrounds Audio Portal - '.$username);			// Album
+					$sys.= ' -t '.escapeshellarg($files[$i]['name']);					// Track Name
 
 					// if we're using id3v2
 					if (strpos($id3,'2') !== false) {
-						$sys.= ' -T '.escapeshellarg($files[$i]['lid'].'/'.$t);		// Track/Total Tracks
-						$sys.= ' --TPOS '.escapeshellarg($files[$i]['disc']);		// Include disc number
+						$sys.= ' -T '.escapeshellarg($files[$i]['lid'].'/'.$t);				// Track/Total Tracks
+						$sys.= ' --TPOS '.escapeshellarg($files[$i]['disc']);				// Include disc number
 					} else {
-						$sys.= ' -T '.escapeshellarg($files[$i]['lid']);		// Track
+						$sys.= ' -T '.escapeshellarg($files[$i]['lid']);				// Track
 					}
-					$sys.= ' -a '.escapeshellarg($username);				// Artist
-					$sys.= ' -y '.escapeshellarg($files[$i]['year']);			// Year
-					$sys.= ' -c '.escapeshellarg('Downloaded using GingerPauls NG batch downloader'); // Comments
-					if (isset($id3GenreCodes[$files[$i]['type']])) { // If we have the ID of the genre
+					$sys.= ' -a '.escapeshellarg($username);						// Artist
+					$sys.= ' -y '.escapeshellarg($files[$i]['year']);					// Year
+					$sys.= ' -c '.escapeshellarg('Downloaded using GingerPauls NG batch downloader');	// Comments
+					if (isset($id3GenreCodes[$files[$i]['type']])) { 		// If we have the ID of the Genre
 						$sys.= ' -g '.escapeshellarg($id3GenreCodes[$files[$i]['type']]); // use it
 					} else {
 						$sys.= ' -g 12'; // else use other
