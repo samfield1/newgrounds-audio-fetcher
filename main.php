@@ -17,7 +17,7 @@
 		if ($downloadTotal === 0) {
 			echo cReturn, $downloadText, 'Starting...';
 		} else {
-			echo cReturn, $downloadText, round(($downloadCompleted / $downloadTotal) * 100, 2), '%           ';
+			#echo cReturn, $downloadText, round(($downloadCompleted / $downloadTotal) * 100, 2), '%           ';
 		}
 	}
 
@@ -44,6 +44,7 @@
 
 		$target = fopen($target, 'w');
 		$ch = curl_init($url);
+		curl_setopt($ch, CURLOPT_RETURNTRANSFER,1);
 		curl_setopt($ch, CURLOPT_AUTOREFERER, true);
 		curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 2);		// 2 seconds
 		curl_setopt($ch, CURLOPT_DNS_CACHE_TIMEOUT, 1200);	// 20 mins
@@ -184,7 +185,7 @@
 		}
 
 		// Store the mp3s in a new folder
-		$downloadDir = 'downloads/'.$usernameFiltered.'/';
+		$downloadDir = '/home/'{USER}'/Music/'.$usernameFiltered.'/';
 		if (!is_dir($downloadDir) && $simulationMode === false) {
 			mkdir($downloadDir);
 		}
@@ -257,7 +258,7 @@
 							'file' => $file				// File (Disc-Track Title)
 						);
 					$text = TAB.TAB.TAB.str_pad('Working on Track '. ($i + 1). ' of '. $t. ' ('.$files[$i]['name'].')...', 56, ' ');
-					echo $text;
+					echo $text+'\r';
 
 					// Simulation mode
 					if ($simulationMode) {
